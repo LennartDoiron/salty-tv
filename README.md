@@ -101,22 +101,11 @@ Twitch won't autoplay a player smaller than 400×300, so on a small TV the playe
 ## Things to know
 
 - **SaltyBet can change its site.** The endpoints the app uses aren't an official API (they're the same requests the site and community bots make), so a change on SaltyBet's side can break betting until SaltyTV is updated.
-- **Ads**: the stream is SaltyBet's Twitch channel, so Twitch's ads play by default. Twitch Turbo removes them reliably. When you run SaltyTV from source, you can also tick **Try to skip Twitch ads (experimental)** in the SaltyTV window (the installer doesn't include it). It runs [TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions)' `vaft` script (MIT) inside the stream's Twitch player, which tries to switch to an ad-free copy of the stream during ad breaks. It isn't guaranteed: sometimes you'll see a short pause instead of an ad, and since that project is archived, a Twitch change could stop it working. It's off by default.
+- **Ads**: the stream is SaltyBet's Twitch channel, so Twitch's ads play by default. Twitch Turbo removes them reliably. If you build SaltyTV yourself (see [Building it with ad skipping](#building-it-with-ad-skipping)), you can also tick **Try to skip Twitch ads (experimental)** in the SaltyTV window. It runs [TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions)' `vaft` script (MIT) inside the stream's Twitch player, which tries to switch to an ad-free copy of the stream during ad breaks. It isn't guaranteed: sometimes you'll see a short pause instead of an ad, and since that project is archived, a Twitch change could stop it working. It's off by default.
 - **SaltyBet's rules**: this is a custom client that places bets you click yourself. Check SaltyBet's terms if you plan to share it.
 - **App and addon go together.** The app installs the matching addon itself. If you also use CurseForge, keep both up to date: the markers changed size in 0.4, so an older addon isn't found by a newer app (and the other way round).
 - **Things that can confuse the detector**: color-blind filters, ReShade or other post-processing, HDR, or something covering several of the TV's corners at once (one or two is fine). If the control window says "Not found", turn those off.
 - **Blizzard**: the addon only draws textures and the app only reads the screen. Nothing touches the game's memory or sends input to it, which is the same approach other overlay addons use.
-
-## Personal build (with ad skipping)
-
-The public installer leaves out the **Try to skip Twitch ads** switch. To make an installer that has it, for yourself and friends, build it on your own Windows PC (needs Node.js, and `npm install` done once):
-
-```
-cd companion
-npm run dist:personal
-```
-
-The installer lands in `companion\dist\SaltyTV-Personal-Setup-<version>.exe`. It installs over the public version (same app, same settings) and shows **personal** next to the version number. It doesn't update itself, because the public releases would remove the ad skipping. The SaltyTV window tells you when a new version is out; pull the new code (`git pull`), run `npm install` and `npm run dist:personal` again, and share the new installer. Don't upload it to GitHub Releases or CurseForge.
 
 ## Privacy
 
@@ -128,7 +117,7 @@ The installer lands in `companion\dist\SaltyTV-Personal-Setup-<version>.exe`. It
 
 - Fighter stats: [SaltyBoy](https://salty-boy.com) by FranciscoAT (MIT).
 - The stream and betting: [SaltyBet](https://www.saltybet.com). SaltyTV is a fan project and isn't affiliated with SaltyBet, Twitch or Blizzard Entertainment.
-- Optional ad skipping when run from source: [TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions) by pixeltris (MIT).
+- Optional ad skipping in self-built copies: [TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions) by pixeltris (MIT).
 
 ## Releasing a new version
 
@@ -136,6 +125,12 @@ The installer lands in `companion\dist\SaltyTV-Personal-Setup-<version>.exe`. It
 2. Commit, then tag and push: `git tag v0.6.0 && git push origin main v0.6.0`.
 3. GitHub Actions (`.github/workflows/release.yml`) runs the tests, builds `SaltyTV-Setup-0.6.0.exe` on Windows and publishes it as a release. Installed copies update from there.
 4. The release also gets `SaltyTV-addon-v0.6.0.zip`: upload that to CurseForge as a new file (game version: Forever). The project description lives in `CURSEFORGE.md`.
+
+## Building it with ad skipping
+
+The installer on the Releases page doesn't include the experimental **Try to skip Twitch ads** switch, but the source does (`companion/vendor/`, from [TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions)). To build an installer with it for yourself, on Windows with [Node.js](https://nodejs.org) installed: download this repo (green **Code** button, **Download ZIP**, or `git clone`), then double-click **`build-personal.bat`**. It opens the folder with `SaltyTV-Personal-Setup-<version>.exe` when it's done. (Or run `npm install` and `npm run dist:personal` in `companion`.)
+
+The personal build installs over the regular one, shows **personal** next to its version, and has the switch (off until you tick it). It doesn't update itself, since the regular releases would remove the switch; the SaltyTV window tells you when a new version is out, and you build again. Please don't re-upload it to Releases or CurseForge.
 
 ## Files
 
