@@ -7,7 +7,7 @@
 --
 -- Messages (GUILD channel, prefix "SaltyTV", fields separated by ";"):
 --   R;id;char;class;salty;bal;peak;win;t   one player's record; the highest t wins
---   Q;1                                    "I just logged in, please share"
+--   Q;id                                   "I just logged in, please share" (id = the asker's, "-" if none)
 -- Everyone who hears Q queues every record they know with a random delay, and
 -- drops a queued record as soon as someone else broadcasts it. That way each
 -- record is usually sent once per request, not once per guildmate.
@@ -29,22 +29,41 @@ local nextSendAt = 0
 local lastQueryFrom = {}           -- sender -> GetTime() of the last share request we answered
 local started, dirty = false, false
 local roster, rosterNames          -- sets of "Name-Realm" / "name" in the guild, or nil if not loaded
+local Start                        -- (defined further down)
 local debugOn = false
 
 local function dbg(...)
     if debugOn then print("|cff8888ffSaltyTV sync|r:", ...) end
 end
 
--- "MirageRaceway": the realm part of "Name-Realm". Falls back to the plain realm
--- name if WoW doesn't have the normalized one yet.
+-- Names. On WoW Forever characters can have a surname, with spaces and hyphens
+-- ("Chehul Shammy", "Ann Smith-Jones"), and addons get no realm name. So a hyphen
+-- never means "a realm follows": only a realm WoW actually reports is stripped,
+-- and names are compared whole.
+local learnedName                  -- how guildmates see your name (learned from your own messages)
+
 local function RealmName()
     local r = GetNormalizedRealmName and GetNormalizedRealmName()
     if (not r or r == "") and GetRealmName then r = (GetRealmName() or ""):gsub("[%s%-]", "") end
     return r or ""
 end
 
-local function BaseName(full)
-    return (tostring(full or ""):match("^([^%-]+)") or ""):lower()
+--- lowercase, without a "-Realm" ending (only if WoW told us the realm)
+local function Norm(name)
+    local n = tostring(name or ""):lower()
+    local realm = RealmName():lower()
+    if realm ~= "" and #n > #realm + 1 and n:sub(-#realm - 1) == "-" .. realm then n = n:sub(1, -#realm - 2) end
+    return n
+end
+
+--- Same character? Exactly, or one is the other plus a surname ("Chehul" / "Chehul Shammy").
+local function SameName(a, b)
+    a, b = Norm(a), Norm(b)
+    if a == "" or b == "" then return false end
+    if a == b then return true end
+    if #a > #b then a, b = b, a end
+    local after = b:sub(#a + 1, #a + 1)
+    return b:sub(1, #a) == a and (after == " " or after == "-")
 end
 
 -- Classic-style clients only know your guild's name after the roster was requested.
@@ -115,6 +134,28 @@ end
 
 local function Changed() dirty = true end
 
+--- Your name as guildmates see it: learned from your own messages coming back,
+--- else your guild roster entry, else what WoW calls you.
+local function MyName()
+    local me = UnitName("player")
+    if not me or me == "" then return nil end
+    if learnedName then return learnedName end
+    local saved = SaltyTVDB and SaltyTVDB.names and SaltyTVDB.names[me]
+    if saved then return saved end
+    if roster then
+        local found
+        for name in pairs(roster) do
+            if SameName(name, me) then
+                if found and found ~= name then found = nil break end -- two matches: don't guess
+                found = name
+            end
+        end
+        if found then return found end
+    end
+    local realm = RealmName()
+    return realm ~= "" and (me .. "-" .. realm) or me
+end
+
 local function AppData()
     local d = SaltyTV_AppData
     if type(d) ~= "table" or type(d.id) ~= "string" or d.id == "" or not int(d.updated) then return nil end
@@ -124,6 +165,7 @@ end
 --- Your own record, built from what the SaltyTV app wrote.
 local function BuildMine()
     local d = AppData()
+    myFull = MyName()
     if not d or not myFull then return nil end
     local _, class = UnitClass("player")
     return {
@@ -212,15 +254,23 @@ local function OnAddonMessage(prefix, text, channel, sender)
     if channel ~= "GUILD" or type(text) ~= "string" then return end
     local store = Store()
     if not store then dbg("  ignored: not connected to the guild yet") return end
-    if type(sender) == "string" and not sender:find("-", 1, true) then
-        sender = sender .. "-" .. RealmName()
-    end
-    local fromMe = sender == myFull
+    sender = type(sender) == "string" and sender or ""
+    local myId = AppData() and AppData().id
 
     local kind = text:sub(1, 2)
     if kind == "R;" then
         local r = Sync.Decode(text)
         if not r then dbg("  couldn't read it") return end
+        -- yours is recognised by your SaltyTV id, never by name
+        local fromMe = myId ~= nil and r.id == myId
+        if fromMe and sender ~= "" and SameName(sender, UnitName("player")) and sender ~= learnedName then
+            -- your own message came back: that's exactly how guildmates see your name
+            learnedName = sender
+            SaltyTVDB.names = SaltyTVDB.names or {}
+            SaltyTVDB.names[UnitName("player")] = sender
+            dbg("  your name as the guild sees it:", sender)
+            C_Timer.After(1, function() ns.Sync.Reshare() end)
+        end
         if not fromMe then Unqueue(r.id, r.t) end -- someone already shared it
         local cur = store[r.id]
         if cur and cur.t > r.t then
@@ -228,7 +278,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
         elseif Sync.Merge(store, r) then
             Changed()
         end
-    elseif kind == "Q;" and not fromMe then
+    elseif kind == "Q;" and not (myId and text:sub(3) == myId) then
         local last = lastQueryFrom[sender]
         if last and GetTime() - last < QUERY_COOLDOWN then return end -- they're asking too often
         lastQueryFrom[sender] = GetTime()
@@ -271,24 +321,26 @@ end
 local function UpdateRoster()
     local n = GetNumGuildMembers and GetNumGuildMembers() or 0
     if not n or n == 0 then roster, rosterNames = nil, nil return end
-    local set, names, realm = {}, {}, RealmName()
+    local set, names = {}, {}
     for i = 1, n do
         local name = GetGuildRosterInfo(i)
-        if type(name) == "string" then
-            if not name:find("-", 1, true) then name = name .. "-" .. realm end
+        if type(name) == "string" and name ~= "" then
             set[name] = true
-            names[BaseName(name)] = true -- realms can be written differently; names can't
+            names[Norm(name)] = true
         end
     end
     roster, rosterNames = set, names
+    if not started then Start() end -- the roster can be what finally lets us connect
     Changed()
 end
 
-local function Start()
+function Start()
     local gName, _, _, gRealm = GetGuildInfo("player")
+    -- some clients never give the guild's name to addons; once the roster is in, we
+    -- know you're in a guild, and it's the only one you can be in on this character
+    if not gName and roster and IsInGuild() then gName = "Guild" end
     me = UnitName("player")
-    local realm = RealmName()
-    myFull = me and realm ~= "" and (me .. "-" .. realm) or nil
+    myFull = MyName()
     if not gName or not myFull then
         guildName, guildKey, started = nil, nil, false
         if IsInGuild() then
@@ -300,11 +352,12 @@ local function Start()
     end
     if started and gName == guildName then return end
     started, guildName = true, gName
-    guildKey = gName .. "-" .. (gRealm or realm)
+    local realm = RealmName()
+    guildKey = gName .. ((gRealm or realm) ~= "" and ("-" .. (gRealm or realm)) or "")
     wipe(pendingById)
     Prune()
     ShareMine()
-    C_Timer.After(4 + math.random() * 4, function() Queue("Q;1") end)
+    C_Timer.After(4 + math.random() * 4, function() Queue("Q;" .. (Sync.MyId() or "-")) end)
     RequestRoster()
     dbg("connected to", guildKey, "as", myFull)
     Changed()
@@ -319,8 +372,7 @@ function Sync.Records()
     local store = Store()
     if store then
         for _, r in pairs(store) do
-            if not roster or roster[r.char] or rosterNames[BaseName(r.char)]
-                or (AppData() and r.id == AppData().id) then
+            if not roster or Sync.InGuild(r.char) or (AppData() and r.id == AppData().id) then
                 list[#list + 1] = r
             end
         end
@@ -343,6 +395,28 @@ function Sync.Ranked(list, field)
     end)
     return out
 end
+
+--- Is this name on the guild roster? (whole names; "Chehul" also matches "Chehul Shammy")
+function Sync.InGuild(name)
+    if not roster then return true end
+    if rosterNames[Norm(name)] then return true end
+    for n in pairs(roster) do
+        if SameName(n, name) then return true end
+    end
+    return false
+end
+
+--- A name for the board: the whole name, minus a "-Realm" ending WoW told us about.
+function Sync.DisplayName(name)
+    name = tostring(name or "?")
+    local realm = RealmName()
+    if realm ~= "" and name:sub(-#realm - 1):lower() == ("-" .. realm):lower() then
+        return name:sub(1, -#realm - 2)
+    end
+    return name
+end
+
+function Sync.Reshare() ShareMine() end
 
 function Sync.MyId()
     local d = AppData()
@@ -375,13 +449,16 @@ function Sync.Debug()
         SaltyTVDB.share == false and "off" or "on"))
     print(("|cff8888ffSaltyTV sync|r: records stored: %d | shown: %d | roster: %d | waiting to send: %d | in an instance: %s"):format(
         count(Store()), #Sync.Records(), count(roster), #outbox + count(pendingById), tostring(inInstance)))
+    print(("|cff8888ffSaltyTV sync|r: WoW says: guild %q, realm %q / %q, your name %q (as the guild sees it: %q)"):format(
+        tostring((GetGuildInfo("player"))), tostring(GetNormalizedRealmName and GetNormalizedRealmName()),
+        tostring(GetRealmName and GetRealmName()), tostring(UnitName("player")), tostring(learnedName or "not seen yet")))
     print("|cff8888ffSaltyTV sync|r: message log " .. (debugOn and "ON (type /salty debug again to stop)" or "off"))
     if debugOn and guildKey then Sync.RequestNow() end
 end
 
 function Sync.RequestNow()
     if not guildKey then print("SaltyTV: you're not in a guild.") return end
-    Queue("Q;1")
+    Queue("Q;" .. (Sync.MyId() or "-"))
     ShareMine()
     print("SaltyTV: asking your guild for leaderboard records…")
 end

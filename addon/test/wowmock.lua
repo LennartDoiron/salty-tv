@@ -119,11 +119,13 @@ function GetGuildInfo()
     if not MOCK.guild then return nil end
     -- like Classic-style clients: no guild name until someone asks for the roster
     if MOCK.lazyGuild and not MOCK.rosterRequested then return nil end
+    if MOCK.noGuildName then return nil end
     return MOCK.guild, "Member", 1, MOCK.guildRealm
 end
 function IsInGuild() return MOCK.guild ~= nil end
 function UnitName() return MOCK.player end
-function GetNormalizedRealmName() return MOCK.realm end
+function GetNormalizedRealmName() if MOCK.noRealm then return nil end return MOCK.realm end
+function GetRealmName() if MOCK.noRealm then return "" end return MOCK.realm end
 function UnitClass() return "Class", MOCK.class, 1 end
 function IsInInstance() return MOCK.inInstance, MOCK.inInstance and "party" or "none" end
 function GetNumGuildMembers() return MOCK.roster and #MOCK.roster or 0 end

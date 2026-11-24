@@ -53,8 +53,9 @@ function Board.Ago(t)
     return string.format("%dd ago", math.floor(d / 86400))
 end
 
+-- whole names: on WoW Forever "Ann Smith-Jones" is one name, not "Ann" from realm "Smith-Jones"
 local function ShortName(char)
-    return (char or "?"):match("^[^-]+") or char
+    return ns.Sync and ns.Sync.DisplayName(char) or tostring(char or "?")
 end
 
 local function ClassColor(class)

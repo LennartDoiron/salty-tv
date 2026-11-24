@@ -21,9 +21,11 @@ def appdata(id_, bal, peak, win, updated, salty=None):
 
 
 class Client:
-    def __init__(self, world, name, cls, guild='Baboochie', data=None, saved=None, roster=None, seed=1, lazy_guild=False):
+    def __init__(self, world, name, cls, guild='Baboochie', data=None, saved=None, roster=None, seed=1, lazy_guild=False,
+                 no_realm=False, no_guild_name=False, seen_as=None):
         self.world, self.name, self.guild = world, name, guild
-        self.full = f'{name}-Realm'
+        # what others see as the sender (on Forever: "First Surname", no realm)
+        self.full = seen_as or (name if no_realm else f'{name}-Realm')
         self.lua = lua51.LuaRuntime(unpack_returned_tuples=True)
         self.lua.execute(open(os.path.join(HERE, 'wowmock.lua')).read())
         g = self.lua.globals()
@@ -31,6 +33,8 @@ class Client:
         self.M.player, self.M.realm, self.M['class'] = name, 'Realm', cls
         self.M.guild = guild
         self.M.lazyGuild = lazy_guild
+        self.M.noRealm = no_realm
+        self.M.noGuildName = no_guild_name
         self.M.epoch = BASE_EPOCH + int(world.t)
         if roster is not None:
             self.M.roster = self.lua.table_from(roster)
@@ -325,5 +329,55 @@ w.run(5)
 for c in (ann, ben, cat):
     names = sorted(r[1] for r in c.board()['sections'][0][1] if r[1] not in ('—', 'No records yet'))
     check(names == ['Ann', 'Ben', 'Cat'], f'slow guild info + odd realm names: {c.name} sees everyone ({names})')
+
+# --- WoW Forever: no realm name for addons, and senders/roster without realms (seen in /salty debug: "you: nil")
+w = World()
+plain_roster = ['Ann', 'Ben', 'Cat'] + [f'Member{i}' for i in range(27)]
+for no_guild_name in (False, True):
+    w = World()
+    kw = dict(no_realm=True, no_guild_name=no_guild_name, roster=plain_roster)
+    ann = w.login('Ann', 'MAGE', data=appdata('a1', 1000, 2000, 300, T0 + 1, 'ann'), seed=31, **kw)
+    ben = w.login('Ben', 'PRIEST', data=appdata('b1', 5000, 6000, 700, T0 + 2, 'ben'), seed=32, **kw)
+    cat = w.login('Cat', 'ROGUE', data=appdata('c1', 9000, 9900, 100, T0 + 3, 'cat'), seed=33, **kw)
+    for c in (ann, ben, cat):
+        c.M.fire('GUILD_ROSTER_UPDATE')
+    w.run(40)
+    what = 'no realm and no guild name' if no_guild_name else 'no realm name'
+    for c in (ann, ben, cat):
+        names = sorted(r[1] for r in c.board()['sections'][0][1] if r[1] not in ('\u2014', 'No records yet'))
+        check(names == ['Ann', 'Ben', 'Cat'], f'{what}: {c.name} sees everyone ({names})')
+    check(w.count('Q') <= 3 * 2, f'{what}: nobody answers their own share requests (Q sent {w.count("Q")})')
+
+# --- WoW Forever names: surnames with spaces and hyphens. WoW may call you just "Ann"
+#     while the roster and your messages say "Ann Smith".
+for short_unitname in (True, False):
+    w = World()
+    people = [('Ann', 'Ann Smith', 'MAGE', 'a1'), ('Bo', 'Bo Lee-Park', 'PRIEST', 'b1'), ('Cy', 'Cy', 'ROGUE', 'c1'),
+              ('Di', 'Di Ann-Marie Fox', 'DRUID', 'd1')]
+    roster = [full for _, full, _, _ in people] + ['Ann Other', 'Somebody Else']
+    clients = []
+    for i, (first, full, cls, rid) in enumerate(people):
+        clients.append(w.login(first if short_unitname else full, cls, seen_as=full, no_realm=True, roster=roster,
+                               data=appdata(rid, 1000 * (i + 1), 2000 * (i + 1), 100 * (i + 1), T0 + i, first.lower()),
+                               seed=40 + i))
+    for c in clients:
+        c.M.fire('GUILD_ROSTER_UPDATE')
+    w.run(40)
+    what = 'WoW gives the first name only' if short_unitname else 'WoW gives the full name'
+    want = sorted(full for _, full, _, _ in people)
+    shown = lambda c: sorted(c.ns.Sync.DisplayName(r.char) for r in c.ns.Sync.Records().values())
+    for c in clients:
+        check(shown(c) == want, f'Forever names ({what}): {c.name} has everyone, by full name ({shown(c)})')
+    top = [r[1] for r in clients[0].board()['sections'][0][1]]
+    check(top == ['Di Ann-Marie Fox', 'Cy', 'Bo Lee-Park'], f'Forever names ({what}): board shows whole names ({top})')
+    chars = sorted(r.char for r in clients[0].ns.Sync.Records().values())
+    check(chars == want, f'Forever names ({what}): records carry full names, hyphens kept ({chars})')
+    # someone who left the guild disappears, by whole name ("Ann Smith" leaving doesn't hide "Ann Other")
+    for c in clients[1:]:
+        c.M.roster = c.lua.table_from([full for _, full, _, _ in people[1:]] + ['Ann Other'])
+        c.M.fire('GUILD_ROSTER_UPDATE')
+    w.run(2)
+    check('Ann Smith' not in shown(clients[1]) and 'Bo Lee-Park' in shown(clients[1]),
+          f'Forever names ({what}): someone who left drops off, by whole name ({shown(clients[1])})')
 
 print('all sync/board simulations passed')
