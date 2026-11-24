@@ -21,7 +21,7 @@ const { Records, findSelfInZdata } = require('./records');
 const { betResult, detectDeduction, availableToBet } = require('./bets');
 const { writeDataAddon } = require('./dataaddon');
 const { detectMode } = require('./modes');
-const { installAddon } = require('./addoninstall');
+const { installAddon, compareVersions } = require('./addoninstall');
 let autoUpdater = null;
 try { ({ autoUpdater } = require('electron-updater')); } catch { /* running from source without it */ }
 
@@ -662,7 +662,7 @@ function pushSettings() {
     adblockAvailable: !!readVaft(), // the public installer doesn't include the script
     startWithWindows: startsWithWindows(),
     canStartWithWindows: app.isPackaged && process.platform === 'win32',
-    version: require('./package.json').version,
+    version: require('./package.json').version + (personal ? ' personal' : ''),
   });
 }
 
@@ -722,8 +722,31 @@ function setUpdate(u) {
 }
 function pushUpdate() { send(control, 'update', update); }
 
+// The personal build (with ad skipping) only says when a new version is out: installing
+// the public release over it would remove the ad skipping.
+const PKG = require('./package.json');
+const personal = PKG.saltytvEdition === 'personal';
+
+function checkPersonalUpdate() {
+  const repo = PKG.saltytvRepo;
+  net.fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`GitHub said ${r.status}`))))
+    .then((rel) => {
+      const latest = String(rel.tag_name || '').replace(/^v/, '');
+      if (latest && compareVersions(latest, PKG.version) > 0) setUpdate({ status: 'personal-new', version: latest });
+      else setUpdate({ status: 'current' });
+    })
+    .catch((e) => setUpdate({ status: 'error', message: String((e && e.message) || e) }));
+}
+
 function initUpdates() {
-  if (!app.isPackaged || !autoUpdater) return setUpdate({ status: 'source' });
+  if (!app.isPackaged) return setUpdate({ status: 'source' });
+  if (personal) {
+    setTimeout(checkPersonalUpdate, 5000);
+    setInterval(checkPersonalUpdate, 6 * 60 * 60 * 1000);
+    return;
+  }
+  if (!autoUpdater) return setUpdate({ status: 'source' });
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true; // a downloaded update installs next time you quit anyway
   autoUpdater.on('checking-for-update', () => { if (update.status !== 'ready') setUpdate({ status: 'checking' }); });
@@ -743,7 +766,11 @@ function installUpdate() {
   autoUpdater.quitAndInstall(true, true); // quiet install, then start SaltyTV again
 }
 ipcMain.on('install-update', installUpdate);
-ipcMain.on('check-update', () => { if (autoUpdater && app.isPackaged) autoUpdater.checkForUpdates().catch(() => {}); });
+ipcMain.on('check-update', () => {
+  if (!app.isPackaged) return;
+  if (personal) checkPersonalUpdate();
+  else if (autoUpdater) autoUpdater.checkForUpdates().catch(() => {});
+});
 
 ipcMain.on('choose-wow-folder', async () => {
   const res = await dialog.showOpenDialog(control, {

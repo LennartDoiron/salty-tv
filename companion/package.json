@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "test": "node test/detector.test.js && node test/bets.test.js && node test/stats.test.js && node test/modes.test.js && node test/leaderboard.test.js && node test/addoninstall.test.js",
-    "dist": "electron-builder --win --x64 --publish never"
+    "dist": "electron-builder --win --x64 --publish never",
+    "dist:personal": "electron-builder --win --x64 --publish never --config electron-builder.personal.js"
   },
   "devDependencies": {
     "electron": "^45.4.1",
@@ -23,16 +24,23 @@
     "appId": "com.saltytv.companion",
     "productName": "SaltyTV",
     "copyright": "SaltyTV is a fan project, not affiliated with SaltyBet, Twitch or Blizzard.",
-    "directories": { "output": "dist", "buildResources": "build" },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
     "files": [
       "**/*",
       "!test/**",
       "!dist/**",
       "!build/**",
-      "!vendor/**"
+      "!vendor/**",
+      "!electron-builder.personal.js"
     ],
     "extraResources": [
-      { "from": "../addon/SaltyTV", "to": "addon/SaltyTV" }
+      {
+        "from": "../addon/SaltyTV",
+        "to": "addon/SaltyTV"
+      }
     ],
     "asarUnpack": [
       "node_modules/koffi/**",
@@ -40,7 +48,14 @@
     ],
     "npmRebuild": false,
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico"
     },
     "nsis": {

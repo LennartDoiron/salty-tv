@@ -88,6 +88,10 @@
       } else if (u.status === 'downloading') set('upd', `Downloading v${u.version}… ${u.percent || 0}%`, 'warn');
       else if (u.status === 'checking') set('upd', 'Checking for updates…', 'dim');
       else if (u.status === 'current') set('upd', 'Up to date', 'ok');
+      else if (u.status === 'personal-new') {
+        set('upd', `v${u.version} is out: get the new personal build`, 'warn');
+        $('upd').title = 'Your personal build (with ad skipping) doesn\'t update itself. Rebuild it with npm run dist:personal.';
+      }
       else if (u.status === 'error') {
         set('upd', "Couldn't check for updates", 'bad'); $('upd').title = u.message || '';
         btn.textContent = 'Retry'; btn.hidden = false; btn.onclick = () => salty.send('check-update');

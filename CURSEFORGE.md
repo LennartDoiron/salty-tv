@@ -1,6 +1,5 @@
 <!--
   Project description for CurseForge (paste everything below this comment).
-  Before pasting, replace YOUR-GITHUB-NAME in the link at the bottom.
   CurseForge's rules: no direct download links to files elsewhere, and links to
   other sites go at the bottom of the description. So this links the GitHub
   project page (whose README has the download), at the bottom.
@@ -59,6 +58,6 @@ SaltyTV is a fan project, not affiliated with SaltyBet, Twitch or Blizzard. Figh
 ## Getting the app
 
 The SaltyTV app is free and open source. Download it and read the install guide here:
-**https://github.com/YOUR-GITHUB-NAME/salty-tv**
+**https://github.com/LennartDoiron/salty-tv**
 
 The installer isn't code-signed yet, so Windows may say "Windows protected your PC". Click **More info**, then **Run anyway**.

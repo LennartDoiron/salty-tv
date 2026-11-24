@@ -107,6 +107,17 @@ Twitch won't autoplay a player smaller than 400×300, so on a small TV the playe
 - **Things that can confuse the detector**: color-blind filters, ReShade or other post-processing, HDR, or something covering several of the TV's corners at once (one or two is fine). If the control window says "Not found", turn those off.
 - **Blizzard**: the addon only draws textures and the app only reads the screen. Nothing touches the game's memory or sends input to it, which is the same approach other overlay addons use.
 
+## Personal build (with ad skipping)
+
+The public installer leaves out the **Try to skip Twitch ads** switch. To make an installer that has it, for yourself and friends, build it on your own Windows PC (needs Node.js, and `npm install` done once):
+
+```
+cd companion
+npm run dist:personal
+```
+
+The installer lands in `companion\dist\SaltyTV-Personal-Setup-<version>.exe`. It installs over the public version (same app, same settings) and shows **personal** next to the version number. It doesn't update itself, because the public releases would remove the ad skipping. The SaltyTV window tells you when a new version is out; pull the new code (`git pull`), run `npm install` and `npm run dist:personal` again, and share the new installer. Don't upload it to GitHub Releases or CurseForge.
+
 ## Privacy
 
 - The app looks at your screen only to find the TV's corner markers, on your PC. Nothing is recorded or sent anywhere.
