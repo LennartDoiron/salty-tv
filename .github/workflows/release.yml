@@ -17,9 +17,9 @@ jobs:
       run:
         working-directory: companion
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -43,6 +43,7 @@ jobs:
             }"
 
       - name: Build the installer and publish the release
+        shell: bash # PowerShell would split "-c.publish.repo=..." at the dot
         run: npx electron-builder --win --x64 --publish always -c.publish.owner=${{ github.repository_owner }} -c.publish.repo=${{ github.event.repository.name }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
