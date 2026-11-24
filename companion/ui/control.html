@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SaltyTV</title>
+<style>
+  body { margin: 0; padding: 16px; background: #111216; color: #ddd;
+    font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
+  h1 { margin: 0 0 12px; font-size: 18px; display: flex; align-items: baseline; justify-content: space-between; }
+  h1 #ver { font-size: 11px; font-weight: 400; color: #777; }
+  h1 .r { color: #ff5a5a; } h1 .b { color: #5aa0ff; }
+  h2 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #888; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 8px 10px; background: #1b1c22; border-radius: 6px; margin-bottom: 8px; }
+  .row > span:last-child { text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row > span:first-child:not(#lb) { white-space: nowrap; flex-shrink: 0; }
+  .row[hidden], button[hidden] { display: none; }
+  #wowdir { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+  label.off { color: #666; }
+  .ok { color: #6fdc6f; } .bad { color: #ff8080; } .warn { color: #ffd34d; } .dim { color: #888; }
+  .purple { color: #c79bff; }
+  button { background: #2a2b33; color: #eee; border: 1px solid #444; border-radius: 4px;
+    padding: 5px 10px; cursor: pointer; }
+  small { color: #888; display: block; margin-top: 10px; }
+  #numbers { font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1><span><span class="r">Salty</span><span class="b">TV</span></span><span id="ver"></span></h1>
+  <div class="row"><span>In-game screen</span><span id="det" class="bad">Looking…</span></div>
+  <div class="row"><span>SaltyBet</span><span id="acct" class="bad">Not logged in</span></div>
+  <div class="row"><span>Current match</span><span id="match">—</span></div>
+  <div class="row"><span>Mode</span><span id="mode" class="dim">—</span></div>
+  <div class="row">
+    <button id="login">Log in</button>
+    <button id="logout">Log out</button>
+    <label><input type="checkbox" id="demo"> Show without WoW</label>
+  </div>
+  <div class="row" id="adblockRow" hidden title="Uses TwitchAdSolutions' vaft script inside the stream. Not guaranteed: some ad breaks may show a short pause instead, and Twitch changes can stop it working. Twitch Turbo is the only sure way.">
+    <label><input type="checkbox" id="adblock"> Try to skip Twitch ads <span class="dim">(experimental)</span></label>
+  </div>
+
+  <h2>WoW</h2>
+  <div class="row"><span>WoW folder</span><span id="wowdir" class="bad">Looking…</span><button id="choose">Change…</button></div>
+  <div class="row"><span>SaltyTV addon</span><span id="addon" class="dim">—</span><button id="addonBtn" hidden>Update it for me</button></div>
+
+  <h2>Guild leaderboard</h2>
+  <div class="row"><span id="lb" class="dim">—</span></div>
+  <div class="row"><span>Your numbers</span><span id="numbers" class="dim">—</span></div>
+
+  <h2>App</h2>
+  <div class="row">
+    <label id="startRow"><input type="checkbox" id="startWin"> Start with Windows</label>
+    <span id="upd" class="dim"></span><button id="updBtn" hidden></button>
+  </div>
+
+  <small>In WoW: /salty shows or hides the screen, /salty lock locks it, /salty reset recenters it,
+    /salty board opens the leaderboard. WoW must be in Windowed or Maximized mode.
+    Closing this window keeps SaltyTV running in the tray; quit from the tray icon.</small>
+  <script src="util.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const { fmtMoney } = window.SaltyUtil;
+    $('login').onclick = () => salty.send('login');
+    $('logout').onclick = () => salty.send('logout');
+    $('demo').onchange = (e) => salty.send('demo', e.target.checked);
+    $('choose').onclick = () => salty.send('choose-wow-folder');
+    $('addonBtn').onclick = () => salty.send('update-addon');
+    $('adblock').onchange = (e) => salty.send('set-adblock', e.target.checked);
+    $('startWin').onchange = (e) => salty.send('start-with-windows', e.target.checked);
+    salty.on('settings', (st) => {
+      $('adblock').checked = !!st.adblock;
+      $('adblockRow').hidden = !st.adblockAvailable;
+      $('startWin').checked = !!st.startWithWindows;
+      $('startWin').disabled = !st.canStartWithWindows;
+      $('startRow').className = st.canStartWithWindows ? '' : 'off';
+      $('startRow').title = st.canStartWithWindows ? 'Starts quietly in the tray when you log in to Windows'
+        : 'Only in the installed app';
+      if (st.version) $('ver').textContent = 'v' + st.version;
+    });
+    salty.on('update', (u) => {
+      const btn = $('updBtn');
+      btn.hidden = true;
+      if (u.status === 'ready') {
+        set('upd', `v${u.version} is ready`, 'ok');
+        btn.textContent = 'Restart to update'; btn.hidden = false;
+        btn.onclick = () => salty.send('install-update');
+      } else if (u.status === 'downloading') set('upd', `Downloading v${u.version}… ${u.percent || 0}%`, 'warn');
+      else if (u.status === 'checking') set('upd', 'Checking for updates…', 'dim');
+      else if (u.status === 'current') set('upd', 'Up to date', 'ok');
+      else if (u.status === 'error') {
+        set('upd', "Couldn't check for updates", 'bad'); $('upd').title = u.message || '';
+        btn.textContent = 'Retry'; btn.hidden = false; btn.onclick = () => salty.send('check-update');
+      } else if (u.status === 'source') set('upd', 'Running from source (no auto-updates)', 'dim');
+      else set('upd', '', 'dim');
+    });
+    const set = (id, text, cls) => { $(id).textContent = text; $(id).className = cls || ''; };
+
+    salty.on('detector', (d) => {
+      const how = d.via === 'live' ? `live${d.fps ? ' ' + d.fps + ' fps' : ''}` : 'snapshots';
+      let text = 'Not found', cls = 'bad';
+      if (d.error) text = 'Error: ' + d.error;
+      else if (d.found && d.hidden) { text = `Hidden while you drag the TV or use the map/menu · ${how}`; cls = 'warn'; }
+      else if (d.found) { text = `Found (${d.rect.width}×${d.rect.height}) · ${how}`; cls = 'ok'; }
+      set('det', text, cls);
+      $('det').title = d.via === 'live'
+        ? 'Following the TV with live screen capture'
+        : 'Checking the screen twice a second. Live tracking is off' + (d.reason ? ': ' + d.reason : '');
+    });
+    const MODE_NAMES = { matchmaking: 'Matchmaking', tournament: 'Tournament', exhibition: 'Exhibition' };
+    salty.on('state', (s) => {
+      const tourney = s.mode === 'tournament';
+      set('acct', s.loggedIn ? `Logged in · ${fmtMoney(s.balance)}${tourney ? ' tournament funds' : ''}` : 'Not logged in',
+        !s.loggedIn ? 'bad' : tourney ? 'purple' : 'ok');
+      $('match').textContent = s.p1name ? `${s.p1name} vs ${s.p2name}` : (s.error || '—');
+      const name = MODE_NAMES[s.mode] || 'Unknown';
+      set('mode', s.remaining ? `${name} · ${s.remaining}` : name, tourney ? 'purple' : 'dim');
+      $('mode').title = s.remaining || '';
+    });
+    salty.on('leaderboard', (l) => {
+      if (l.addOnsDir) {
+        const short = l.addOnsDir.replace(/[\\/]_forever_[\\/]Interface[\\/]AddOns$/i, '');
+        set('wowdir', short, 'ok');
+        $('wowdir').title = l.addOnsDir;
+      } else {
+        set('wowdir', 'Not found: click Change…', 'bad');
+      }
+      const a = l.addon;
+      $('addonBtn').hidden = !(a && a.status === 'outdated');
+      $('addon').title = '';
+      if (!l.addOnsDir) set('addon', 'Pick your WoW folder first', 'bad');
+      else if (!a) set('addon', '—', 'dim');
+      else if (a.error) set('addon', "Couldn't install: " + a.error, 'bad');
+      else if (a.status === 'installed') set('addon', `Installed v${a.version} · restart WoW once`, 'warn');
+      else if (a.status === 'updated') set('addon', `Updated to v${a.version} · restart WoW`, 'warn');
+      else if (a.status === 'outdated') {
+        set('addon', a.compatible ? `v${a.version} · v${a.latest} is out` : `v${a.version} is too old for this app`,
+          a.compatible ? 'warn' : 'bad');
+        $('addon').title = 'Update SaltyTV in the CurseForge app, or click "Update it for me".';
+      } else if (a.status === 'newer') set('addon', `v${a.version} (newer than this app's copy)`, 'ok');
+      else set('addon', `Up to date (v${a.version})`, 'ok');
+      const tourney = l.mode === 'tournament';
+      if (l.error) set('lb', l.error, 'bad');
+      else if (!l.addOnsDir) set('lb', 'Pick your WoW folder (above)', 'bad');
+      else if (tourney && !l.written) set('lb', "Paused for the tournament (tournament funds don't count). Your balance is saved once it ends.", 'purple');
+      else if (tourney) set('lb', `Saved ${fmtMoney(l.balance)} before the tournament. Paused until it ends.`, 'purple');
+      else if (!l.written) set('lb', 'Waiting for your balance (shows after the next match)', 'dim');
+      else if (l.needsRestart) set('lb', 'Saved. Restart WoW once so it finds SaltyTV_Data', 'warn');
+      else set('lb', 'Saved. /reload in WoW to share it', 'ok');
+      $('numbers').textContent = l.balance
+        ? `${fmtMoney(l.balance)} · peak ${fmtMoney(l.peak)} · best win ${fmtMoney(l.biggestWin)}`
+        : '—';
+      $('numbers').title = l.saltyName ? `SaltyBet name: ${l.saltyName}` : 'SaltyBet name: learned after your first bet from the bar';
+    });
+  </script>
+</body>
+</html>

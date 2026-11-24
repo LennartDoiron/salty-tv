@@ -1,0 +1,64 @@
+{
+  "name": "saltytv-companion",
+  "productName": "SaltyTV",
+  "version": "0.5.0",
+  "description": "Watch and bet on SaltyBet inside WoW Forever (companion to the SaltyTV addon)",
+  "author": "Lenny",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/detector.test.js && node test/bets.test.js && node test/stats.test.js && node test/modes.test.js && node test/leaderboard.test.js && node test/addoninstall.test.js",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2",
+    "koffi": "^3.3.8"
+  },
+  "build": {
+    "appId": "com.saltytv.companion",
+    "productName": "SaltyTV",
+    "copyright": "SaltyTV is a fan project, not affiliated with SaltyBet, Twitch or Blizzard.",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "**/*",
+      "!test/**",
+      "!dist/**",
+      "!build/**",
+      "!vendor/**"
+    ],
+    "extraResources": [
+      { "from": "../addon/SaltyTV", "to": "addon/SaltyTV" }
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**",
+      "node_modules/@koromix/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SaltyTV",
+      "uninstallDisplayName": "SaltyTV",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "SaltyTV-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "repo": "salty-tv",
+      "releaseType": "release"
+    }
+  }
+}

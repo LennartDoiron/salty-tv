@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SaltyTV video</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: #888;
+    font: 12px "Segoe UI", system-ui, sans-serif; }
+  /* Twitch only autoplays players that are at least 400x300, so on a small TV
+     the player is laid out at that size and shrunk to fit (see video.js). */
+  #wrap { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #player, #player iframe { width: 100%; height: 100%; border: 0; display: block; }
+  #clickable { position: absolute; inset: 0; border: 3px solid #ffd34d; pointer-events: none; display: none; }
+  #clickable span { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); white-space: nowrap;
+    background: #ffd34d; color: #000; font-weight: 700; padding: 2px 8px; border-radius: 3px; }
+</style>
+</head>
+<body>
+  <div id="wrap"><div id="player"></div></div>
+  <div id="clickable"><span>Stream is clickable · back to WoW in 20s</span></div>
+  <script src="https://player.twitch.tv/js/embed/v1.js"></script>
+  <script src="video.js"></script>
+</body>
+</html>

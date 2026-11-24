@@ -1,0 +1,57 @@
+# Push a version tag (git tag v0.5.0 && git push origin v0.5.0) and this builds
+# SaltyTV-Setup-<version>.exe on Windows, publishes it as a GitHub release (which
+# the installed apps update from), and attaches the addon zip for CurseForge.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: companion
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: companion/package-lock.json
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Tag, app and addon versions must match
+        shell: bash
+        run: |
+          node -e "
+            const v = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            const app = require('./package.json').version;
+            const toc = require('fs').readFileSync('../addon/SaltyTV/SaltyTV.toc', 'utf8');
+            const addon = (/^## Version:\s*(\S+)/m.exec(toc) || [])[1];
+            if (v !== app || v !== addon) {
+              console.error('Tag ' + v + ', app ' + app + ', addon ' + addon + ': bump companion/package.json and SaltyTV.toc to the same version.');
+              process.exit(1);
+            }"
+
+      - name: Build the installer and publish the release
+        run: npx electron-builder --win --x64 --publish always -c.publish.owner=${{ github.repository_owner }} -c.publish.repo=${{ github.event.repository.name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Zip the addon for CurseForge
+        shell: pwsh
+        run: Compress-Archive -Path ../addon/SaltyTV -DestinationPath ../SaltyTV-addon-${{ github.ref_name }}.zip
+
+      - name: Attach the addon zip to the release
+        run: gh release upload ${{ github.ref_name }} ../SaltyTV-addon-${{ github.ref_name }}.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SaltyTV bar</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0c0c10;
+    font: 12px/1.2 "Segoe UI", system-ui, sans-serif; color: #eee; user-select: none; }
+  #bar { height: 100%; display: grid; grid-template-rows: 100%;
+    grid-template-columns: minmax(44px, 1fr) minmax(0, max-content) minmax(44px, 1fr) auto auto;
+    align-items: center; gap: 6px; padding: 3px 6px;
+    background: linear-gradient(#17171c, #0c0c10); border-top: 1px solid #333; }
+
+  /* fighters */
+  .side { display: flex; flex-direction: column; justify-content: center; min-width: 0; overflow: hidden; }
+  .side.blue { text-align: right; align-items: flex-end; }
+  .name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .red .name { color: #ff5a5a; } .blue .name { color: #5aa0ff; }
+  .stat { font-size: 11px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; min-height: 13px; }
+  .stat .wr { color: #e8e8e8; font-weight: 700; }
+  .stat .wr.hot { color: #6fdc6f; } .stat .wr.cold { color: #ff8a80; }
+  .bet { margin-top: 2px; border: 0; border-radius: 3px; padding: 2px 8px; font-weight: 700;
+    color: #fff; cursor: pointer; align-self: flex-start; white-space: nowrap; }
+  .blue .bet { align-self: flex-end; }
+  .red .bet { background: #b3262b; } .blue .bet { background: #2459b3; }
+  .bet:disabled { opacity: .35; cursor: default; }
+  /* the side you bet on: "✓ RED" with a gold ring (click either side to change, until bets lock) */
+  .bet.picked { box-shadow: inset 0 0 0 2px #ffd34d; }
+  .bet.picked::before { content: "\2713  "; }
+  .bet.picked .verb { display: none; }
+  .bet.picked:disabled { opacity: .75; }
+
+  /* middle: tier + status, presets, amount */
+  .mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; min-width: 0; max-width: 250px; }
+  .top { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status { font-weight: 700; color: #ffd34d; }
+  #status.pick-red { color: #ff7a7a; } #status.pick-blue { color: #7ab4ff; }
+  .tier { display: inline-block; min-width: 15px; padding: 0 3px; margin-right: 5px; border-radius: 3px;
+    font: 800 10px/13px "Segoe UI", system-ui, sans-serif; color: #000; text-align: center; vertical-align: 1px; }
+  .tier[hidden], .mode[hidden] { display: none; }
+  /* match mode: TOURNAMENT (separate tournament funds), EXHIBITION, or a heads-up that a tournament is next */
+  .mode { display: inline-block; padding: 0 5px; margin-right: 5px; border-radius: 3px;
+    font: 800 10px/13px "Segoe UI", system-ui, sans-serif; letter-spacing: .04em; vertical-align: 1px; }
+  .mode.tournament { background: #9b4dff; color: #fff; }
+  .mode.exhibition { background: #3a3f4a; color: #cfd8e3; }
+  .mode.next { background: transparent; color: #c79bff; border: 1px solid #9b4dff; line-height: 11px; }
+  .mode .short { display: none; }
+  /* during a tournament the whole bar turns purple, so it's obvious you're betting tournament funds */
+  #bar.tourney { background: linear-gradient(#2a1840, #150c22); border-top: 2px solid #9b4dff; }
+  #bar.tourney .wagers button.on { background: #b98aff; border-color: #b98aff; }
+  #bar.tourney #amount { border-color: #6b3fb0; }
+  #bar.tourney .wlabel { color: #c79bff; }
+  .t-X { background: #d65cff; } .t-S { background: #ffcf33; } .t-A { background: #ff8a3d; }
+  .t-B { background: #4fc3f7; } .t-P { background: #9e9e9e; }
+  .wagers { display: flex; gap: 3px; }
+  .wagers button { background: #2a2a33; color: #ddd; border: 1px solid #444; border-radius: 3px;
+    padding: 0 6px; font-size: 11px; line-height: 14px; cursor: pointer; white-space: nowrap; }
+  .wagers button.on { background: #ffd34d; color: #000; border-color: #ffd34d; }
+  .wagers.off { opacity: .45; }
+  .amtrow { display: flex; align-items: center; gap: 3px; color: #aaa; font-size: 11px; white-space: nowrap; }
+  .amtrow[hidden], .msg[hidden] { display: none; }
+  #amount { width: 78px; height: 16px; padding: 0 4px; border: 1px solid #444; border-radius: 3px;
+    background: #15151a; color: #fff; font: 600 11px "Segoe UI", system-ui, sans-serif; cursor: text; user-select: text; }
+  #amount.typing { border-color: #ffd34d; outline: none; }
+  #amount.over { color: #ff8a80; border-color: #b3262b; }
+  .msg { color: #aaa; font-size: 11px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .msg.win { color: #6fdc6f; font-weight: 700; } .msg.loss { color: #ff7a7a; font-weight: 700; }
+
+  /* your balance, always visible. "+$X" / "-$X" floats up from it when a fight ends */
+  .wallet { position: relative; display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+    height: 100%; padding-left: 7px; border-left: 1px solid #2a2a33; }
+  .wlabel { font: 800 9px/11px "Segoe UI", system-ui, sans-serif; letter-spacing: .08em; color: #8a8a96; transition: opacity .2s; }
+  .wallet.popping .wlabel { opacity: 0; } /* the +/- takes the label's place for a moment */
+  .wamt { font: 800 14px/18px "Segoe UI", system-ui, sans-serif; color: #ffd34d; white-space: nowrap;
+    font-variant-numeric: tabular-nums; transition: color .3s; }
+  .wamt.up { color: #6fdc6f; } .wamt.down { color: #ff7a7a; }
+  .delta { --rise: -9px; position: absolute; right: 0; bottom: calc(50% + 5px); font: 800 13px/1 "Segoe UI", system-ui, sans-serif;
+    white-space: nowrap; opacity: 0; pointer-events: none; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+  .delta.win { color: #6fdc6f; } .delta.loss { color: #ff6b6b; }
+  .delta.go { animation: floatup 2.8s ease-out forwards; }
+  @keyframes floatup {
+    0%   { opacity: 0; transform: translateY(8px) scale(.8); }
+    12%  { opacity: 1; transform: translateY(0) scale(1.15); }
+    70%  { opacity: 1; transform: translateY(calc(var(--rise) / 3)) scale(1); }
+    100% { opacity: 0; transform: translateY(var(--rise)) scale(1); }
+  }
+
+  /* stream controls: play/pause, mute, make clickable, reload */
+  .ctrls { display: grid; grid-template-columns: repeat(2, 22px); grid-auto-rows: 21px; gap: 3px; }
+  .ctrls button { background: #22232a; border: 1px solid #3a3a44; border-radius: 3px; color: #ddd;
+    font: 12px/1 "Segoe UI Emoji", "Segoe UI Symbol", system-ui, sans-serif; padding: 0; cursor: pointer; }
+  .ctrls button:hover { border-color: #777; }
+  .ctrls button.on { background: #ffd34d; border-color: #ffd34d; color: #000; }
+
+  /* small TV: drop the word "BET" and the win-loss record, tighten things */
+  @media (max-width: 480px) {
+    .verb, .stat .rec { display: none; }
+    .mode .long { display: none; } .mode .short { display: inline; }
+    .bet { padding: 2px 6px; }
+    .wagers { gap: 2px; }
+    .wagers button { padding: 0 3px; font-size: 10px; }
+    #status, .msg, .amtrow { font-size: 10px; }
+    #amount { width: 64px; }
+    .mid { max-width: 200px; }
+    .wamt { font-size: 12px; }
+  }
+  /* tiny TV: hide pots, the word BALANCE, the check mark and two % buttons so everything fits */
+  @media (max-width: 360px) {
+    #bar { grid-template-columns: minmax(40px, 1fr) minmax(0, max-content) minmax(40px, 1fr) auto auto; }
+    .stat .pot, .wlabel { display: none; }
+    .wagers button[data-pct="0.05"], .wagers button[data-pct="0.5"] { display: none; }
+    .bet.picked::before { content: none; }
+    .bet { padding: 2px 4px; font-size: 11px; }
+    .mid { max-width: 150px; }
+    .wallet { padding-left: 4px; }
+    .delta { --rise: -2px; bottom: auto; top: 1px; font-size: 11px; }
+    #bar { gap: 4px; padding: 3px 4px; }
+  }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <div class="side red">
+      <span class="name" id="p1">—</span>
+      <span class="stat" id="p1s"></span>
+      <button class="bet" id="betRed" data-side="player1"><span class="verb">BET </span>RED</button>
+    </div>
+    <div class="mid">
+      <div class="top"><span id="tier" class="tier" hidden></span><span id="mode" class="mode" hidden><span class="long"></span><span class="short"></span></span><span id="status">Connecting…</span></div>
+      <div class="wagers">
+        <button data-pct="0.05">5%</button>
+        <button data-pct="0.1" class="on">10%</button>
+        <button data-pct="0.25">25%</button>
+        <button data-pct="0.5">50%</button>
+        <button data-pct="1">ALL IN</button>
+      </div>
+      <div class="amtrow" id="amountRow">
+        $<input id="amount" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
+                title="Click and type an amount (500, 2k, 1.5m). Enter to confirm, Esc to cancel.">
+      </div>
+      <div class="msg" id="amountMsg" hidden></div>
+    </div>
+    <div class="side blue">
+      <span class="name" id="p2">—</span>
+      <span class="stat" id="p2s"></span>
+      <button class="bet" id="betBlue" data-side="player2"><span class="verb">BET </span>BLUE</button>
+    </div>
+    <div class="wallet" id="wallet">
+      <span class="wlabel" id="wlabel">BALANCE</span>
+      <span class="wamt" id="wamt">—</span>
+      <span class="delta" id="delta"></span>
+    </div>
+    <div class="ctrls">
+      <button id="play" title="Play / pause the stream">▶</button>
+      <button id="mute" title="Mute / unmute">🔊</button>
+      <button id="click" title="Make the stream clickable for 20 seconds (for Twitch's own buttons)">🖱</button>
+      <button id="reload" title="Reload the stream">↻</button>
+    </div>
+  </div>
+  <script src="util.js"></script>
+  <script src="bar.js"></script>
+</body>
+</html>
