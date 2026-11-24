@@ -21,6 +21,7 @@ local SECTIONS = {
 local FOOTER = {
     ok = "Updates when guildmates log in or /reload.",
     noguild = "You're not in a guild, so only your own numbers show.",
+    waiting = "Connecting to your guild… If this doesn't go away, type /salty debug.",
     nodata = "No numbers from the SaltyTV app yet. Run it, bet on a matchmaking match, then restart WoW once.",
     off = "You're not sharing your numbers (/salty share on).",
 }

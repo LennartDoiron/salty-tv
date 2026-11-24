@@ -212,8 +212,10 @@ SlashCmdList.SALTYTV = function(msg)
         if ns.Sync then ns.Sync.SetShare(msg == "share on") end
     elseif msg == "sync" then
         if ns.Sync then ns.Sync.RequestNow() end
+    elseif msg == "debug" then
+        if ns.Sync then ns.Sync.Debug() end
     elseif msg == "help" then
-        print("SaltyTV: /salty (show/hide), /salty lock, /salty reset, /salty board, /salty share on|off, /salty sync")
+        print("SaltyTV: /salty (show/hide), /salty lock, /salty reset, /salty board, /salty share on|off, /salty sync, /salty debug")
     elseif msg == "lock" then
         SaltyTVDB.locked = not SaltyTVDB.locked
         print("SaltyTV " .. (SaltyTVDB.locked and "locked" or "unlocked"))

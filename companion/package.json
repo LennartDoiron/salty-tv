@@ -1,7 +1,7 @@
 {
   "name": "saltytv-companion",
   "productName": "SaltyTV",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Watch and bet on SaltyBet inside WoW Forever (companion to the SaltyTV addon)",
   "author": "Lenny",
   "license": "MIT",

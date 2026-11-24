@@ -28,7 +28,30 @@ local outbox = {}                  -- { msg = "...", tries = n, id = record id, 
 local nextSendAt = 0
 local lastQueryFrom = {}           -- sender -> GetTime() of the last share request we answered
 local started, dirty = false, false
-local roster                       -- set of "Name-Realm" in the guild, or nil if not loaded
+local roster, rosterNames          -- sets of "Name-Realm" / "name" in the guild, or nil if not loaded
+local debugOn = false
+
+local function dbg(...)
+    if debugOn then print("|cff8888ffSaltyTV sync|r:", ...) end
+end
+
+-- "MirageRaceway": the realm part of "Name-Realm". Falls back to the plain realm
+-- name if WoW doesn't have the normalized one yet.
+local function RealmName()
+    local r = GetNormalizedRealmName and GetNormalizedRealmName()
+    if (not r or r == "") and GetRealmName then r = (GetRealmName() or ""):gsub("[%s%-]", "") end
+    return r or ""
+end
+
+local function BaseName(full)
+    return (tostring(full or ""):match("^([^%-]+)") or ""):lower()
+end
+
+-- Classic-style clients only know your guild's name after the roster was requested.
+local function RequestRoster()
+    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster()
+    elseif GuildRoster then GuildRoster() end
+end
 
 ---------------------------------------------------------------------------
 -- encoding
@@ -164,6 +187,7 @@ local function Tick()
     if outbox[1] and now >= nextSendAt and CanSend() then
         local item = table.remove(outbox, 1)
         local ok, res = pcall(C_ChatInfo.SendAddonMessage, PREFIX, item.msg, "GUILD")
+        dbg("sent", item.msg:sub(1, 1), item.id or "", "->", ok and tostring(res) or ("error: " .. tostring(res)))
         if ok and (res == nil or res == true or res == 0) then
             nextSendAt = now + SEND_GAP
         else
@@ -183,18 +207,20 @@ end
 -- receiving
 ---------------------------------------------------------------------------
 local function OnAddonMessage(prefix, text, channel, sender)
-    if prefix ~= PREFIX or channel ~= "GUILD" or type(text) ~= "string" then return end
+    if prefix ~= PREFIX then return end
+    dbg("got", tostring(text):sub(1, 1), "from", tostring(sender), "on", tostring(channel))
+    if channel ~= "GUILD" or type(text) ~= "string" then return end
     local store = Store()
-    if not store then return end
+    if not store then dbg("  ignored: not connected to the guild yet") return end
     if type(sender) == "string" and not sender:find("-", 1, true) then
-        sender = sender .. "-" .. (GetNormalizedRealmName() or "")
+        sender = sender .. "-" .. RealmName()
     end
     local fromMe = sender == myFull
 
     local kind = text:sub(1, 2)
     if kind == "R;" then
         local r = Sync.Decode(text)
-        if not r then return end
+        if not r then dbg("  couldn't read it") return end
         if not fromMe then Unqueue(r.id, r.t) end -- someone already shared it
         local cur = store[r.id]
         if cur and cur.t > r.t then
@@ -244,26 +270,31 @@ end
 
 local function UpdateRoster()
     local n = GetNumGuildMembers and GetNumGuildMembers() or 0
-    if not n or n == 0 then roster = nil return end
-    local set, realm = {}, GetNormalizedRealmName() or ""
+    if not n or n == 0 then roster, rosterNames = nil, nil return end
+    local set, names, realm = {}, {}, RealmName()
     for i = 1, n do
         local name = GetGuildRosterInfo(i)
         if type(name) == "string" then
             if not name:find("-", 1, true) then name = name .. "-" .. realm end
             set[name] = true
+            names[BaseName(name)] = true -- realms can be written differently; names can't
         end
     end
-    roster = set
+    roster, rosterNames = set, names
     Changed()
 end
 
 local function Start()
     local gName, _, _, gRealm = GetGuildInfo("player")
     me = UnitName("player")
-    local realm = GetNormalizedRealmName() or ""
-    myFull = me and (me .. "-" .. realm) or nil
-    if not gName then
+    local realm = RealmName()
+    myFull = me and realm ~= "" and (me .. "-" .. realm) or nil
+    if not gName or not myFull then
         guildName, guildKey, started = nil, nil, false
+        if IsInGuild() then
+            RequestRoster() -- so WoW looks up the guild; we try again in a few seconds
+            dbg("waiting for WoW's guild info")
+        end
         Changed()
         return
     end
@@ -274,7 +305,8 @@ local function Start()
     Prune()
     ShareMine()
     C_Timer.After(4 + math.random() * 4, function() Queue("Q;1") end)
-    if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
+    RequestRoster()
+    dbg("connected to", guildKey, "as", myFull)
     Changed()
 end
 
@@ -287,7 +319,8 @@ function Sync.Records()
     local store = Store()
     if store then
         for _, r in pairs(store) do
-            if not roster or roster[r.char] or (AppData() and r.id == AppData().id) then
+            if not roster or roster[r.char] or rosterNames[BaseName(r.char)]
+                or (AppData() and r.id == AppData().id) then
                 list[#list + 1] = r
             end
         end
@@ -316,10 +349,11 @@ function Sync.MyId()
     return d and d.id or nil
 end
 
---- "ok", "noguild", "nodata" (no SaltyTV_Data yet) or "off" (sharing turned off)
+--- "ok", "noguild", "waiting" (in a guild, still connecting), "nodata" (no SaltyTV_Data yet)
+--- or "off" (sharing turned off)
 function Sync.Status()
     if not AppData() then return "nodata" end
-    if not guildKey then return "noguild" end
+    if not guildKey then return IsInGuild() and "waiting" or "noguild" end
     if SaltyTVDB.share == false then return "off" end
     return "ok"
 end
@@ -329,6 +363,20 @@ function Sync.SetShare(on)
     print("SaltyTV: sharing your SaltyBet numbers with your guild is " .. (on and "on" or "off") .. ".")
     if on then ShareMine() end
     Changed()
+end
+
+--- /salty debug: what the guild sync is doing, and log its messages to chat (again to stop).
+function Sync.Debug()
+    debugOn = not debugOn
+    local count = function(t) local n = 0 for _ in pairs(t or {}) do n = n + 1 end return n end
+    local inInstance = IsInInstance()
+    print(("|cff8888ffSaltyTV sync|r: in a guild: %s | connected: %s | you: %s | app numbers: %s | sharing: %s"):format(
+        tostring(IsInGuild()), tostring(guildKey or "no"), tostring(myFull), AppData() and "yes" or "no",
+        SaltyTVDB.share == false and "off" or "on"))
+    print(("|cff8888ffSaltyTV sync|r: records stored: %d | shown: %d | roster: %d | waiting to send: %d | in an instance: %s"):format(
+        count(Store()), #Sync.Records(), count(roster), #outbox + count(pendingById), tostring(inInstance)))
+    print("|cff8888ffSaltyTV sync|r: message log " .. (debugOn and "ON (type /salty debug again to stop)" or "off"))
+    if debugOn and guildKey then Sync.RequestNow() end
 end
 
 function Sync.RequestNow()
@@ -355,6 +403,7 @@ events:SetScript("OnEvent", function(_, event, ...)
         local ok = pcall(OnAddonMessage, ...)
         if not ok then return end
     elseif event == "PLAYER_LOGIN" then
+        if IsInGuild() then RequestRoster() end
         C_Timer.After(3, Start) -- guild info isn't always ready right at login
     elseif event == "PLAYER_GUILD_UPDATE" then
         Start()
@@ -365,3 +414,5 @@ events:SetScript("OnEvent", function(_, event, ...)
 end)
 
 C_Timer.NewTicker(0.25, Tick)
+-- still not connected to the guild (WoW was slow with the guild info)? keep trying
+C_Timer.NewTicker(5, function() if not started and IsInGuild() then Start() end end)

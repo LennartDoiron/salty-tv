@@ -2,7 +2,7 @@
 ## Title: SaltyTV
 ## Notes: In-game screen for the SaltyTV companion app (SaltyBet stream, betting and guild leaderboard)
 ## Author: Lenny
-## Version: 0.5.0
+## Version: 0.5.1
 ## SavedVariables: SaltyTVDB
 ## OptionalDeps: SaltyTV_Data
 

@@ -117,6 +117,8 @@ function GetTime() return MOCK.now end
 function time() return MOCK.epoch + math.floor(MOCK.now) end
 function GetGuildInfo()
     if not MOCK.guild then return nil end
+    -- like Classic-style clients: no guild name until someone asks for the roster
+    if MOCK.lazyGuild and not MOCK.rosterRequested then return nil end
     return MOCK.guild, "Member", 1, MOCK.guildRealm
 end
 function IsInGuild() return MOCK.guild ~= nil end
@@ -126,7 +128,7 @@ function UnitClass() return "Class", MOCK.class, 1 end
 function IsInInstance() return MOCK.inInstance, MOCK.inInstance and "party" or "none" end
 function GetNumGuildMembers() return MOCK.roster and #MOCK.roster or 0 end
 function GetGuildRosterInfo(i) return MOCK.roster[i] end
-C_GuildInfo = { GuildRoster = function() end }
+C_GuildInfo = { GuildRoster = function() MOCK.rosterRequested = true end }
 RAID_CLASS_COLORS = {
     MAGE = { r = 0.25, g = 0.78, b = 0.92 }, WARRIOR = { r = 0.78, g = 0.61, b = 0.43 },
     ROGUE = { r = 1, g = 0.96, b = 0.41 }, PRIEST = { r = 1, g = 1, b = 1 }, HUNTER = { r = 0.67, g = 0.83, b = 0.45 },

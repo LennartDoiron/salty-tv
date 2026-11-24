@@ -21,7 +21,7 @@ def appdata(id_, bal, peak, win, updated, salty=None):
 
 
 class Client:
-    def __init__(self, world, name, cls, guild='Baboochie', data=None, saved=None, roster=None, seed=1):
+    def __init__(self, world, name, cls, guild='Baboochie', data=None, saved=None, roster=None, seed=1, lazy_guild=False):
         self.world, self.name, self.guild = world, name, guild
         self.full = f'{name}-Realm'
         self.lua = lua51.LuaRuntime(unpack_returned_tuples=True)
@@ -30,6 +30,7 @@ class Client:
         self.M = g.MOCK
         self.M.player, self.M.realm, self.M['class'] = name, 'Realm', cls
         self.M.guild = guild
+        self.M.lazyGuild = lazy_guild
         self.M.epoch = BASE_EPOCH + int(world.t)
         if roster is not None:
             self.M.roster = self.lua.table_from(roster)
@@ -302,5 +303,27 @@ sig.M.advance(0.3)
 check(centers() == ['yellow'] * 4, 'the game menu (Esc) hides it too')
 sig.lua.execute('GameMenuFrame:Hide()')
 sig.M.advance(0.3)
+
+
+# --- three guildmates on a client that only gives out the guild name once the roster
+#     is requested, and whose roster writes the realm differently ("Realm Name" vs "RealmName")
+w = World()
+odd_roster = ['Ann-Re alm', 'Ben-Re alm', 'Cat-Re alm']
+ann = w.login('Ann', 'MAGE', data=appdata('a1', 1000, 2000, 300, T0 + 1, 'ann'), seed=21, lazy_guild=True, roster=odd_roster)
+ben = w.login('Ben', 'PRIEST', data=appdata('b1', 5000, 6000, 700, T0 + 2, 'ben'), seed=22, lazy_guild=True, roster=odd_roster)
+cat = w.login('Cat', 'ROGUE', data=appdata('c1', 9000, 9900, 100, T0 + 3, 'cat'), seed=23, lazy_guild=True, roster=odd_roster)
+w.run(40)
+for c in (ann, ben, cat):  # no roster events at all yet: the addon keeps retrying by itself
+    names = sorted(r[1] for r in c.board()['sections'][0][1] if r[1] not in ('\u2014', 'No records yet'))
+    check(names == ['Ann', 'Ben', 'Cat'], f'slow guild info, no roster events: {c.name} connects anyway ({names})')
+ann.lua.execute('SlashCmdList.SALTYTV("debug")')
+dbg = [str(p) for p in ann.M.prints.values() if 'SaltyTV sync' in str(p)]
+check(len(dbg) >= 3 and 'connected: Baboochie-Realm' in dbg[0] and 'shown: 3' in dbg[1], '/salty debug reports the sync state')
+for c in (ann, ben, cat):
+    c.M.fire('GUILD_ROSTER_UPDATE')
+w.run(5)
+for c in (ann, ben, cat):
+    names = sorted(r[1] for r in c.board()['sections'][0][1] if r[1] not in ('—', 'No records yet'))
+    check(names == ['Ann', 'Ben', 'Cat'], f'slow guild info + odd realm names: {c.name} sees everyone ({names})')
 
 print('all sync/board simulations passed')
