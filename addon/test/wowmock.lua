@@ -33,9 +33,16 @@ function Obj:HookScript(n, f)
     self.scripts[n] = function(...) if old then old(...) end return f(...) end
 end
 function Obj:RegisterEvent(e) MOCK.events[e] = MOCK.events[e] or {}; table.insert(MOCK.events[e], self) end
-function Obj:Show() self.shown = true end
-function Obj:Hide() self.shown = false end
-function Obj:SetShown(v) self.shown = v and true or false end
+-- like WoW: OnShow / OnHide run when the frame's own shown state flips
+function Obj:SetShown(v)
+    v = v and true or false
+    if v == self.shown then return end
+    self.shown = v
+    local s = self.scripts and self.scripts[v and "OnShow" or "OnHide"]
+    if s then s(self) end
+end
+function Obj:Show() self:SetShown(true) end
+function Obj:Hide() self:SetShown(false) end
 function Obj:IsShown() return self.shown end
 function Obj:IsVisible()
     local o = self
@@ -63,6 +70,19 @@ function Obj:GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
 function Obj:GetEffectiveScale() return 1 end
 
 function CreateFrame(kind, name, parent) return new(kind, name, parent) end
+function Obj:SetChecked(v) self.checked = v and true or false end
+function Obj:GetChecked() return self.checked or false end
+function Obj:SetFrameStrata(s) self.strata = s end
+function Obj:GetFrameStrata() return self.strata or "MEDIUM" end
+MOCK.shift, MOCK.onTaxi, MOCK.instanceType = false, false, "party"
+function IsShiftKeyDown() return MOCK.shift end
+function UnitOnTaxi() return MOCK.onTaxi end
+UISpecialFrames = {}
+-- the game's Options window (just records what registers)
+Settings = {
+    RegisterCanvasLayoutCategory = function(frame, name) local c = { frame = frame, name = name }; MOCK.optionsCategory = c; return c end,
+    RegisterAddOnCategory = function(c) c.registered = true end,
+}
 UIParent = new("Frame", "UIParent")
 function UIParent:GetRight() return MOCK.uiRight end
 
@@ -71,6 +91,12 @@ GameTooltip.lines = {}
 function GameTooltip:SetOwner() self.lines = {} end
 function GameTooltip:AddLine(t) table.insert(self.lines, t) end
 function GameTooltip:AddDoubleLine(a, b) table.insert(self.lines, a .. ": " .. b) end
+function GameTooltip:IsOwned() return false end
+function Obj:GetCenter() return self.cx, self.cy end
+Minimap = new("Frame", "Minimap")
+Minimap.width, Minimap.height, Minimap.cx, Minimap.cy = 140, 140, 1800, 900
+MOCK.cursor = { 0, 0 }
+function GetCursorPosition() return MOCK.cursor[1], MOCK.cursor[2] end
 
 -- timers on a fake clock
 C_Timer = {}
@@ -127,7 +153,7 @@ function UnitName() return MOCK.player end
 function GetNormalizedRealmName() if MOCK.noRealm then return nil end return MOCK.realm end
 function GetRealmName() if MOCK.noRealm then return "" end return MOCK.realm end
 function UnitClass() return "Class", MOCK.class, 1 end
-function IsInInstance() return MOCK.inInstance, MOCK.inInstance and "party" or "none" end
+function IsInInstance() return MOCK.inInstance, MOCK.inInstance and MOCK.instanceType or "none" end
 function GetNumGuildMembers() return MOCK.roster and #MOCK.roster or 0 end
 function GetGuildRosterInfo(i) return MOCK.roster[i] end
 C_GuildInfo = { GuildRoster = function() MOCK.rosterRequested = true end }

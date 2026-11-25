@@ -37,4 +37,18 @@ function availableToBet(balance, bet, deducted) {
   return balance + (bet && deducted ? bet.wager : 0);
 }
 
-module.exports = { betResult, detectDeduction, availableToBet };
+/**
+ * Your balance from SaltyBet's home page, or null if you're signed out. Signed out,
+ * the page still shows "$0 Sign in to start playing!", which isn't a real balance.
+ */
+function parseBalance(html) {
+  const page = String(html || '');
+  if (/sign in to start playing/i.test(page)) return null;
+  const m = page.match(/id=["']balance["'][^>]*>\s*([\d,]+)/);
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, ''));
+  if (n === 0 && /authenticate\?signin=1/.test(page)) return null; // a sign-in link and $0: signed out
+  return Number.isFinite(n) ? n : null;
+}
+
+module.exports = { betResult, detectDeduction, availableToBet, parseBalance };

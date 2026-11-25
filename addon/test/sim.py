@@ -10,7 +10,7 @@ import lupa.lua51 as lua51
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ADDON = os.path.join(HERE, '..', 'SaltyTV')
-FILES = ['SaltyTV.lua', 'Sync.lua', 'Board.lua']  # same order as SaltyTV.toc
+FILES = ['SaltyTV.lua', 'Sync.lua', 'Board.lua', 'Settings.lua', 'Minimap.lua']  # same order as SaltyTV.toc
 BASE_EPOCH = 1_700_000_000
 
 
@@ -379,5 +379,232 @@ for short_unitname in (True, False):
     w.run(2)
     check('Ann Smith' not in shown(clients[1]) and 'Bo Lee-Park' in shown(clients[1]),
           f'Forever names ({what}): someone who left drops off, by whole name ({shown(clients[1])})')
+
+# --- minimap button
+import math
+w = World()
+mm = w.login('Mini', 'MAGE', data=appdata('m1', 100, 100, 0, T0 + 1, 'mini'), seed=50)
+btn = mm.lua.globals().SaltyTVMinimapButton
+check(btn is not None and btn.parentUid == mm.lua.globals().Minimap.uid and btn.shown, 'minimap button: on the minimap, shown')
+tv = mm.lua.globals().SaltyTVFrame
+was = tv.shown
+btn.scripts.OnClick(btn, 'LeftButton')
+check(tv.shown != was and mm.lua.globals().SaltyTVDB.shown == tv.shown, 'minimap button: left-click shows/hides the TV (and remembers it)')
+btn.scripts.OnClick(btn, 'LeftButton')
+check(tv.shown == was, 'minimap button: left-click again brings it back')
+board = mm.lua.globals().SaltyTVBoard
+before = bool(board and board.shown)
+btn.scripts.OnClick(btn, 'RightButton')
+board = mm.lua.globals().SaltyTVBoard
+check(board is not None and bool(board.shown) != before, 'minimap button: right-click opens/closes Guild records')
+btn.scripts.OnEnter(btn)
+tip = list(mm.lua.globals().GameTooltip.lines.values())
+check(any('Left-click' in str(t) for t in tip) and any('Right-click' in str(t) for t in tip), f'minimap button: tooltip explains the clicks ({tip})')
+# drag to the top of the minimap
+mm.M.cursor = mm.lua.table_from([1800, 1100])
+btn.scripts.OnDragStart(btn)
+btn.scripts.OnUpdate(btn, 0.02)
+btn.scripts.OnDragStop(btn)
+angle = mm.lua.globals().SaltyTVDB.minimap.angle
+pt = btn.points[len(btn.points)]
+check(abs(angle - 90) < 0.01 and abs(pt[4]) < 0.01 and abs(pt[5] - 75) < 0.01,
+      f'minimap button: dragging moves it around the edge and saves the spot (angle {angle:.1f}, at {pt[4]:.1f},{pt[5]:.1f})')
+check(btn.scripts.OnUpdate is None, 'minimap button: stops following the cursor when you let go')
+mm.lua.execute('SlashCmdList.SALTYTV("minimap")')
+check(not btn.shown and mm.lua.globals().SaltyTVDB.minimap.hide, '/salty minimap hides the button')
+saved = mm.lua.eval('MOCK.serialize(SaltyTVDB)')
+w.logout(mm)
+mm2 = w.login('Mini', 'MAGE', data=appdata('m1', 100, 100, 0, T0 + 1, 'mini'), saved=saved, seed=51)
+b2 = mm2.lua.globals().SaltyTVMinimapButton
+check(not b2.shown and abs(mm2.lua.globals().SaltyTVDB.minimap.angle - 90) < 0.01, 'minimap button: hidden state and position kept after relog')
+mm2.lua.execute('SlashCmdList.SALTYTV("minimap")')
+check(b2.shown, '/salty minimap brings it back')
+
+# --- settings panel, auto open/close, world map, icon
+w = World()
+st = w.login('Setty', 'MAGE', data=appdata('s1', 100, 100, 0, T0 + 1, 'setty'), seed=60)
+G = st.lua.globals()
+tv, panel, S = G.SaltyTVFrame, G.SaltyTVSettings, st.ns.Settings
+check(panel is not None and not panel.shown, 'settings: panel exists, closed at first')
+st.lua.execute('SlashCmdList.SALTYTV("settings")')
+check(panel.shown, '/salty settings opens it')
+gear = G.SaltyTVSettingsButton
+gear.scripts.OnClick(gear)
+check(not panel.shown, 'settings: the gear button on the TV closes it again')
+gear.scripts.OnClick(gear)
+check(panel.shown and panel.points[1][1] == 'TOPLEFT' and panel.points[1][2].uid == tv.uid, 'settings: opens attached to the TV')
+db = G.SaltyTVDB
+check(db.flightOpen and not db.combatHide and not db.instanceHide and db.mapMode == 'hide' and db.share,
+      'settings: defaults (flight paths on, combat/instances off, map hides the stream, sharing on)')
+check(S.Widget('flightOpen').checked and S.Widget('map_hide').checked and not S.Widget('map_show').checked
+      and S.Widget('minimap').checked and S.Widget('share').checked and not S.Widget('locked').checked,
+      'settings: checkboxes show the saved settings')
+# guild records and settings share the spot next to the TV
+st.ns.Board.Toggle(True)
+check(not panel.shown and G.SaltyTVBoard.shown, 'settings: opening Guild records closes Settings')
+S.Toggle(True)
+check(panel.shown and not G.SaltyTVBoard.shown, 'settings: opening Settings closes Guild records')
+# clicking a checkbox
+def click(key):
+    wdg = S.Widget(key)
+    if wdg.option.radio is None:
+        wdg.checked = not wdg.checked  # the game flips it before OnClick
+    else:
+        wdg.checked = True
+    wdg.scripts.OnClick(wdg, 'LeftButton')
+click('locked')
+check(db.locked, 'settings: "Lock it in place" locks the TV')
+st.lua.execute('SlashCmdList.SALTYTV("lock")')
+check(not db.locked and not S.Widget('locked').checked, 'settings: /salty lock updates the checkbox')
+click('minimap')
+check(G.SaltyTVMinimapButton.shown == False and db.minimap.hide, 'settings: minimap checkbox hides the button')
+click('minimap')
+check(G.SaltyTVMinimapButton.shown and not db.minimap.hide, 'settings: and brings it back')
+click('share')
+check(not db.share, 'settings: sharing checkbox turns sharing off')
+click('share')
+check(db.share, 'settings: and back on')
+cat = st.M.optionsCategory
+check(cat is not None and cat.name == 'SaltyTV' and cat.registered, 'settings: also listed in the game\'s Options > AddOns')
+cat.frame.scripts.OnShow(cat.frame)
+check(cat.frame is not None, 'settings: Options > AddOns copy builds and refreshes')
+check(any(e == 'SaltyTVSettings' for e in G.UISpecialFrames.values()), 'settings: Esc closes the panel')
+# minimap: shift-click opens settings
+S.Toggle(False)
+btn = G.SaltyTVMinimapButton
+st.M.shift = True
+btn.scripts.OnClick(btn, 'LeftButton')
+st.M.shift = False
+check(panel.shown, 'minimap button: Shift-click opens Settings')
+btn.scripts.OnEnter(btn)
+tip = list(G.GameTooltip.lines.values())
+check(any('Shift-click' in str(t) for t in tip), 'minimap button: tooltip mentions Shift-click')
+# tv closed -> panel goes to the middle of the screen
+st.lua.execute('SlashCmdList.SALTYTV("")')
+check(not tv.shown and panel.points[1][1] == 'CENTER', 'settings: with the TV closed, the panel moves to the middle')
+st.lua.execute('SlashCmdList.SALTYTV("")')
+check(tv.shown and panel.points[1][2].uid == tv.uid, 'settings: and back next to the TV when it opens')
+
+# flight paths
+st.lua.execute('SlashCmdList.SALTYTV("")')  # TV closed
+st.M.onTaxi = True
+w.run(1)
+check(tv.shown and not db.shown, 'flight path: the TV opens (your own choice stays "closed")')
+st.M.onTaxi = False
+w.run(1)
+check(not tv.shown, 'flight path: closes again when you land')
+st.M.onTaxi = True
+w.run(1)
+st.lua.execute('SlashCmdList.SALTYTV("")')  # you close it mid-flight
+st.M.onTaxi = False
+w.run(1)
+check(not tv.shown, 'flight path: closing it yourself mid-flight is respected')
+st.lua.execute('SlashCmdList.SALTYTV("")')  # TV open
+st.M.onTaxi = True
+w.run(1)
+st.M.onTaxi = False
+w.run(1)
+check(tv.shown, 'flight path: a TV you had open stays open after landing')
+click('flightOpen')
+st.lua.execute('SlashCmdList.SALTYTV("")')  # TV closed
+st.M.onTaxi = True
+w.run(1)
+check(not tv.shown and not db.flightOpen, 'flight path: with the option off, nothing opens')
+st.M.onTaxi = False
+w.run(1)
+click('flightOpen')
+st.lua.execute('SlashCmdList.SALTYTV("")')  # TV open again
+
+# combat
+st.M.fire('PLAYER_REGEN_DISABLED')
+check(tv.shown, 'combat: nothing happens with the option off')
+st.M.fire('PLAYER_REGEN_ENABLED')
+click('combatHide')
+st.M.fire('PLAYER_REGEN_DISABLED')
+check(not tv.shown and db.shown, 'combat: hidden during combat (option on)')
+st.M.fire('PLAYER_REGEN_ENABLED')
+check(tv.shown, 'combat: back after combat')
+# flight + combat together
+st.lua.execute('SlashCmdList.SALTYTV("")')
+st.M.onTaxi = True
+w.run(1)
+st.M.fire('PLAYER_REGEN_DISABLED')
+check(not tv.shown, 'combat on a flight: hidden')
+st.M.fire('PLAYER_REGEN_ENABLED')
+check(tv.shown, 'combat on a flight: back once combat ends, still flying')
+st.M.onTaxi = False
+w.run(1)
+check(not tv.shown, 'combat on a flight: closes on landing')
+st.lua.execute('SlashCmdList.SALTYTV("")')
+click('combatHide')
+
+# instances
+click('instanceHide')
+st.M.inInstance = True
+st.M.instanceType = 'party'
+st.M.fire('PLAYER_ENTERING_WORLD', False, False)
+check(not tv.shown and db.shown, 'instances: hidden in a dungeon')
+st.lua.execute('SlashCmdList.SALTYTV("")')
+st.M.fire('ZONE_CHANGED_NEW_AREA')
+check(tv.shown, 'instances: opening it yourself inside sticks')
+st.M.inInstance = False
+st.M.fire('PLAYER_ENTERING_WORLD', False, False)
+check(tv.shown, 'instances: open after you leave')
+st.M.inInstance = True
+st.M.instanceType = 'scenario'
+st.M.fire('PLAYER_ENTERING_WORLD', False, False)
+check(tv.shown, 'instances: scenarios don\'t count')
+st.M.instanceType = 'raid'
+st.M.fire('PLAYER_ENTERING_WORLD', False, False)
+check(not tv.shown, 'instances: hidden in a raid')
+st.M.inInstance = False
+st.M.fire('PLAYER_ENTERING_WORLD', False, False)
+check(tv.shown, 'instances: back when you leave the raid')
+click('instanceHide')
+
+# world map
+st.lua.execute('CreateFrame("Frame", "WorldMapFrame", UIParent):Hide()')
+wm = G.WorldMapFrame
+w.run(0.5)
+check(not st.ns.SignalHidden() and st.ns.MarkersShown(), 'world map: closed, stream shows')
+wm.shown = True
+w.run(0.5)
+check(st.ns.SignalHidden() and st.ns.MarkersShown(), 'world map "hide, keep the sound": stream hidden (yellow markers)')
+click('map_show')
+w.run(0.5)
+check(db.mapMode == 'show' and not st.ns.SignalHidden() and tv.strata == 'FULLSCREEN_DIALOG'
+      and S.Widget('map_show').checked and not S.Widget('map_hide').checked,
+      'world map "keep showing": TV raised above the map, stream stays')
+wm.shown = False
+w.run(0.5)
+check(tv.strata == 'MEDIUM', 'world map "keep showing": back to normal when the map closes')
+click('map_pause')
+wm.shown = True
+w.run(0.5)
+check(not st.ns.MarkersShown() and not st.ns.SignalHidden() and tv.strata == 'MEDIUM', 'world map "pause": markers off, so the app pauses')
+wm.shown = False
+w.run(0.5)
+check(st.ns.MarkersShown(), 'world map "pause": markers back when the map closes')
+G.GameMenuFrame = None
+st.lua.execute('CreateFrame("Frame", "GameMenuFrame", UIParent)')
+w.run(0.5)
+check(st.ns.SignalHidden(), 'game menu still hides the stream')
+G.GameMenuFrame.shown = False
+w.run(0.5)
+
+# settings survive a relog, and compartment + header icon
+saved = st.logout()
+w.logout(st)
+st2 = w.login('Setty', 'MAGE', data=appdata('s1', 100, 100, 0, T0 + 1, 'setty'), saved=saved, seed=61)
+check(st2.lua.globals().SaltyTVDB.mapMode == 'pause' and st2.ns.Settings.Widget('map_pause') is not None, 'settings: kept after relog')
+G2 = st2.lua.globals()
+tv2 = G2.SaltyTVFrame
+was = tv2.shown
+st2.lua.execute('SaltyTV_OnAddonCompartmentClick("SaltyTV", "LeftButton")')
+check(tv2.shown != was, 'addon compartment: left-click shows/hides the TV')
+st2.lua.execute('SaltyTV_OnAddonCompartmentClick("SaltyTV", "RightButton")')
+check(G2.SaltyTVSettings.shown, 'addon compartment: right-click opens Settings')
+icons = [f for f in st2.M.frames.values() if f.kind == 'Texture' and f.texture == 'Interface\\AddOns\\SaltyTV\\icon']
+check(len(icons) >= 3, f'SaltyTV icon used on the TV header, Settings and minimap button ({len(icons)})')
 
 print('all sync/board simulations passed')

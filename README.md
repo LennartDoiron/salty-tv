@@ -11,7 +11,7 @@ WoW addons can't play video or go online, so this comes in two parts:
 
 **Feels like part of WoW:**
 - **Live tracking:** a hidden window keeps a screen capture running and checks about 30 frames a second, only looking at small patches around the markers. The stream follows the TV as you move it. If live capture can't start on your PC, the app falls back to checking the screen twice a second. The SaltyTV window shows which one is running ("live" or "snapshots").
-- **Hides when it should:** the markers' centers are a little signal from the addon to the app. They're green normally and turn yellow while you drag or resize the TV, or while the map, game menu, settings or a cinematic is open. Then the stream hides (the sound keeps playing) and comes back when you're done.
+- **Hides when it should:** the markers' centers are a little signal from the addon to the app. They're green normally and turn yellow while you drag or resize the TV, or while the game menu, settings or a cinematic is open. Then the stream hides (the sound keeps playing) and comes back when you're done. The world map does what you pick in Settings: hide the stream the same way, keep the TV on top of the map, or pause (the markers turn off, so the app treats the TV as closed).
 - **Stays with WoW:** the overlay sits right above WoW instead of above every app, so if you switch to another window it doesn't float over it. If Windows won't let it go back above WoW, the app falls back to keeping the stream above all windows.
 
 The stream window lets every click pass through to WoW. The betting bar is a separate window that takes clicks without stealing focus, so your keybinds keep working. Because they're separate, the app never installs a system-wide mouse hook.
@@ -24,7 +24,7 @@ The stream window lets every click pass through to WoW. The betting bar is a sep
    - The app finds your WoW folder by itself. If you skipped step 1, it installs the addon for you (restart WoW once). If it can't find WoW, click **Change…** next to *WoW folder* and pick your `World of Warcraft` folder.
 3. **WoW settings**: Display Mode must be **Windowed** or **Windowed (Maximized)**, not exclusive Fullscreen. WoW must be on your **primary monitor**.
 4. In the SaltyTV window, click **Log in** and sign in to SaltyBet. Your session is saved.
-5. In WoW, type `/salty` to show or hide the TV. Drag the header to move it and drag the corner icon to resize. `/salty lock` locks it, `/salty reset` recenters it.
+5. In WoW, click the SaltyTV button on your minimap (or type `/salty`) to show or hide the TV. Right-click it for Guild records, Shift-click for Settings. Drag the header to move it and drag the corner icon to resize. `/salty lock` locks it, `/salty reset` recenters it.
 
 **Updates:** CurseForge keeps the addon up to date. The app updates itself: a new version downloads in the background and the SaltyTV window shows **Restart to update** (or it installs the next time you quit). If your addon falls behind the app, the window says so; update it in CurseForge, or click **Update it for me**. The app never overwrites an addon CurseForge manages unless you click that.
 
@@ -76,6 +76,8 @@ Each always shows a top 3 with a gold, silver and copper coin (empty spots stay 
 - The app learns your SaltyBet name after your first bet from the betting bar. Until then the tooltip says "unknown".
 - What's shared with your guild: your character name and class, SaltyBet name, balance, peak and biggest win. Turn it off with `/salty share off`.
 - `/salty sync` asks your guild to share records again.
+- **Settings** (the gear on the TV, `/salty settings`, Shift-click the minimap button, or Options > AddOns > SaltyTV): lock the TV, show or hide the minimap button, open the TV on flight paths (on by default; it closes again when you land), hide it during combat, hide it in dungeons, raids and PvP, choose what the world map does to the stream, and guild sharing. Showing or hiding the TV yourself always wins over the automatic ones.
+- `/salty minimap` hides or shows the minimap button. Drag the button to move it around the minimap.
 - The app finds your WoW folder automatically. If it can't, click **Change…** in the SaltyTV window and pick your World of Warcraft folder.
 
 ## Stream controls

@@ -13,7 +13,8 @@ Watch the **SaltyBet** stream on a TV inside WoW Forever, bet on the fights with
 
 ## Features
 
-- **A TV in WoW**: drag it anywhere, resize it, lock it. The stream follows it smoothly and hides while you drag it or have the map or game menu open.
+- **A TV in WoW**: drag it anywhere, resize it, lock it. The stream follows it smoothly and hides while you drag it or have the game menu open.
+- **Settings**: open the TV on flight paths, hide it in combat or in dungeons, raids and PvP, and pick what happens when you open the world map (hide the stream, keep it on top of the map, or pause it). Click the gear on the TV, Shift-click the minimap button, or find SaltyTV in Options > AddOns.
 - **Betting bar** under the stream:
   - Each fighter's win rate and record (from SaltyBoy), the tier, and the pots once bets lock
   - Bet with 5% / 10% / 25% / 50% / ALL IN, or type any amount
@@ -28,18 +29,22 @@ Watch the **SaltyBet** stream on a TV inside WoW Forever, bet on the fights with
 1. Install **SaltyTV** with the CurseForge app (with your **Forever** install selected).
 2. Install the **SaltyTV app** (see below) and log in to SaltyBet in its window.
 3. In WoW, set Display Mode to **Windowed** or **Windowed (Maximized)**. WoW needs to be on your main monitor.
-4. Type `/salty` to show the TV.
+4. Click the SaltyTV button on your minimap (or type `/salty`) to show the TV.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `/salty` | Show or hide the TV |
+| `/salty settings` | Open or close Settings |
 | `/salty lock` | Lock or unlock the TV |
 | `/salty reset` | Put the TV back in the middle |
 | `/salty board` | Open or close Guild records |
 | `/salty share on` / `off` | Share your numbers with your guild (on by default) |
 | `/salty sync` | Ask your guild for their latest records |
+| `/salty minimap` | Hide or show the minimap button |
+
+**Minimap button:** left-click shows or hides the TV, right-click opens Guild records, Shift-click opens Settings, drag it to move it around the minimap.
 
 ## FAQ
 

@@ -243,6 +243,7 @@ end
 function Board.Toggle(show)
     if not panel then return end
     if show == nil then show = not panel:IsShown() end
+    if show and ns.Settings and ns.Settings.IsShown() then ns.Settings.Toggle(false) end -- same spot as Settings
     SaltyTVDB.boardShown = show and true or false
     panel:SetShown(show)
     if show then

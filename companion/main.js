@@ -18,7 +18,7 @@ const { fetchMatchStats } = require('./saltyboy');
 const native = require('./native');
 const { findAddOnsDir, addOnsDirFrom, ensureDir } = require('./wowpath');
 const { Records, findSelfInZdata } = require('./records');
-const { betResult, detectDeduction, availableToBet } = require('./bets');
+const { betResult, detectDeduction, availableToBet, parseBalance } = require('./bets');
 const { writeDataAddon } = require('./dataaddon');
 const { detectMode } = require('./modes');
 const { installAddon, compareVersions } = require('./addoninstall');
@@ -501,8 +501,7 @@ async function refreshBalance() {
   try {
     const r = await salty().fetch(`${SALTY}/`, { cache: 'no-store' });
     const html = await r.text();
-    const m = html.match(/id=["']balance["'][^>]*>\s*([\d,]+)/);
-    balance = m ? num(m[1]) : null;
+    balance = parseBalance(html); // null when you're signed out
   } catch {
     balance = null;
   }

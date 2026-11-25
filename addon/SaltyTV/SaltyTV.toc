@@ -2,10 +2,16 @@
 ## Title: SaltyTV
 ## Notes: In-game screen for the SaltyTV companion app (SaltyBet stream, betting and guild leaderboard)
 ## Author: Lenny
-## Version: 0.5.2
+## IconTexture: Interface\AddOns\SaltyTV\icon
+## Version: 0.5.3
 ## SavedVariables: SaltyTVDB
 ## OptionalDeps: SaltyTV_Data
+## AddonCompartmentFunc: SaltyTV_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: SaltyTV_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: SaltyTV_OnAddonCompartmentLeave
 
 SaltyTV.lua
 Sync.lua
 Board.lua
+Settings.lua
+Minimap.lua

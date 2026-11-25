@@ -32,4 +32,13 @@ assert.strictEqual(availableToBet(9845, red(2500), null), 9845, "unknown yet: do
 assert.strictEqual(availableToBet(null, red(2500), true), null, 'not logged in');
 console.log('ok  changing a bet: ALL IN and the % buttons count your current bet as available again');
 
+// reading your balance from SaltyBet's home page
+const { parseBalance } = require('../bets');
+assert.strictEqual(parseBalance('<span class="dollar" id="balance">12,345</span>'), 12345);
+assert.strictEqual(parseBalance('<span id="balance">0</span><a href="/logout">Log out</a>'), 0, 'a real $0 balance');
+assert.strictEqual(parseBalance('<span id="balance">0</span> Sign in to start playing! <a href="https://www.saltybet.com/authenticate?signin=1">Sign in</a>'), null);
+assert.strictEqual(parseBalance('<span id="balance">0</span><a href="/authenticate?signin=1">Sign in</a>'), null);
+assert.strictEqual(parseBalance('<html>no balance here</html>'), null);
+console.log('ok  signed out of SaltyBet reads as "not logged in", not as $0');
+
 console.log('all bet tests passed');
